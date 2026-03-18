@@ -35,7 +35,9 @@ let
   tools = pkgs.callPackage ../pkgs { };
 
   brew = if cfg.patchBrew then patchBrew cfg.package else cfg.package;
-  ruby = pkgs.ruby_3_4;
+
+  ruby = pkgs.ruby_4_0;
+  bundledRuby = ruby.withPackages(gems: [ gems.fiddle ]);
 
   # Sadly, we cannot replace coreutils since the GNU implementations
   # behave differently.
@@ -299,6 +301,7 @@ let
   patchBrew = brew: pkgs.runCommandLocal "${brew.name or "brew"}-patched" {} (''
     cp -r "${brew}" "$out"
     chmod u+w "$out" "$out/Library/Homebrew/cmd"
+    chmod u+w "$out" "$out/Library/Homebrew/utils"
 
     # Disable self-update behavior
     substituteInPlace "$out/Library/Homebrew/cmd/update.sh" \
@@ -308,13 +311,39 @@ let
     ruby_sh="$out/Library/Homebrew/utils/ruby.sh"
     if [[ -e "$ruby_sh" ]] && grep "setup-ruby-path" "$ruby_sh"; then
       chmod u+w "$ruby_sh"
-      echo -e "setup-ruby-path() { export HOMEBREW_RUBY_PATH=\"${ruby}/bin/ruby\"; }" >>"$ruby_sh"
+      echo -e "setup-ruby-path() { export HOMEBREW_RUBY_PATH=\"${bundledRuby}/bin/ruby\"; }" >>"$ruby_sh"
     fi
   '' + lib.optionalString (brew ? version) ''
     # Embed version number instead of checking with git
     brew_sh="$out/Library/Homebrew/brew.sh"
     chmod u+w "$out/Library/Homebrew" "$brew_sh"
     sed -i -e 's/^HOMEBREW_VERSION=.*/HOMEBREW_VERSION="${brew.version}"/g' "$brew_sh"
+
+    # Make fiddle discoverable (no longer bundled in Ruby 3.5+).
+    # Instead of relying on GEM_PATH resolution (which Homebrew's setup_gem_environment!
+    # overrides), we extract fiddle's gemspec path from bundledRuby and activate it
+    # directly at each require site, bypassing GEM_PATH entirely.
+    fiddleSpecPath=$(${bundledRuby}/bin/ruby -e '
+      puts Gem::Specification.find_by_name("fiddle").spec_file
+    ' 2>/dev/null || true)
+
+    if [[ -n "$fiddleSpecPath" ]]; then
+      fiddleActivate="Gem::Specification.load(\"$fiddleSpecPath\").activate; "
+
+      chmod -R u+w "$out/Library/Homebrew/extend/os/mac"
+      substituteInPlace "$out/Library/Homebrew/extend/os/mac/linkage_checker.rb" \
+        --replace-fail 'Kernel.require "fiddle"' \
+        "''${fiddleActivate}Kernel.require \"fiddle\""
+
+      chmod u+w "$out/Library/Homebrew/utils/pid_path.rb"
+      substituteInPlace "$out/Library/Homebrew/utils/pid_path.rb" \
+        --replace-fail 'require "fiddle"' \
+        "''${fiddleActivate}require \"fiddle\""
+
+      echo "Fiddle gemspec: $fiddleSpecPath"
+    else
+      echo "WARNING: Could not find fiddle gem in bundledRuby" >&2
+    fi
 
     # 4.3.5: Clear GIT_REVISION to bypass caching mechanism
     sed -i -e 's/^GIT_REVISION=.*/GIT_REVISION=""; HOMEBREW_VERSION="${brew.version}"/g' "$brew_sh"
