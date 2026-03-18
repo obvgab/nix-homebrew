@@ -302,6 +302,7 @@ let
   patchBrew = brew: pkgs.runCommandLocal "${brew.name or "brew"}-patched" {} (''
     cp -r "${brew}" "$out"
     chmod u+w "$out" "$out/Library/Homebrew/cmd"
+    chmod u+w "$out" "$out/Library/Homebrew/utils"
 
     # Disable self-update behavior
     substituteInPlace "$out/Library/Homebrew/cmd/update.sh" \
