@@ -40,7 +40,6 @@ let
   bundledRuby = ruby.withPackages(gems: [ gems.fiddle ]);
   gemPath = ruby.gemPath;
   
-
   # Sadly, we cannot replace coreutils since the GNU implementations
   # behave differently.
   runtimePath = lib.makeBinPath [ pkgs.gitMinimal ];
@@ -320,8 +319,9 @@ let
     chmod u+w "$out/Library/Homebrew" "$brew_sh"
     sed -i -e 's/^HOMEBREW_VERSION=.*/HOMEBREW_VERSION="${brew.version}"/g' "$brew_sh"
 
-    # Add gem path for discovering `fiddle` (no longer part of default in 3.5+)
+    # Add gem path for discovering `fiddle` (no longer part of default bundle in 3.5+)
     gems_util="$out/Library/Homebrew/utils/gems.rb"
+    chmod u+w "$gems_util"
     sed -i -E "s|\"GEM_PATH\"[[:space:]]*=>[[:space:]]*gem_home,|\"GEM_PATH\" => \"#{gem_home}:${bundledRuby}/${gemPath}\",|" "$gems_util"
 
     # 4.3.5: Clear GIT_REVISION to bypass caching mechanism
