@@ -35,7 +35,7 @@ let
   tools = pkgs.callPackage ../pkgs { };
 
   brew = if cfg.patchBrew then patchBrew cfg.package else cfg.package;
-  ruby = pkgs.ruby_4_0;
+  ruby = pkgs.ruby_4_0.withPackages(gems: [ gems.fiddle ]);
 
   # Sadly, we cannot replace coreutils since the GNU implementations
   # behave differently.
