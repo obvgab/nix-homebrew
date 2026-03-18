@@ -35,7 +35,11 @@ let
   tools = pkgs.callPackage ../pkgs { };
 
   brew = if cfg.patchBrew then patchBrew cfg.package else cfg.package;
-  ruby = pkgs.ruby_4_0.withPackages(gems: [ gems.fiddle ]);
+
+  ruby = pkgs.ruby_4_0;
+  bundledRuby = ruby.withPackages(gems: [ gems.fiddle ]);
+  gemPath = ruby.gemPath;
+  
 
   # Sadly, we cannot replace coreutils since the GNU implementations
   # behave differently.
@@ -308,7 +312,7 @@ let
     ruby_sh="$out/Library/Homebrew/utils/ruby.sh"
     if [[ -e "$ruby_sh" ]] && grep "setup-ruby-path" "$ruby_sh"; then
       chmod u+w "$ruby_sh"
-      echo -e "setup-ruby-path() { export HOMEBREW_RUBY_PATH=\"${ruby}/bin/ruby\"; }" >>"$ruby_sh"
+      echo -e "setup-ruby-path() { export HOMEBREW_RUBY_PATH=\"${bundledRuby}/bin/ruby\"; }" >>"$ruby_sh"
     fi
   '' + lib.optionalString (brew ? version) ''
     # Embed version number instead of checking with git
@@ -318,7 +322,7 @@ let
 
     # Add gem path for discovering `fiddle` (no longer part of default in 3.5+)
     gems_util="$out/Library/Homebrew/utils/gems.rb"
-    sed -i -E "s|\"GEM_PATH\"[[:space:]]*=>[[:space:]]*gem_home,|\"GEM_PATH\" => \"#{gem_home}:${ruby}/${ruby.gemPath}\",|" "$gems_util"
+    sed -i -E "s|\"GEM_PATH\"[[:space:]]*=>[[:space:]]*gem_home,|\"GEM_PATH\" => \"#{gem_home}:${bundledRuby}/${gemPath}\",|" "$gems_util"
 
     # 4.3.5: Clear GIT_REVISION to bypass caching mechanism
     sed -i -e 's/^GIT_REVISION=.*/GIT_REVISION=""; HOMEBREW_VERSION="${brew.version}"/g' "$brew_sh"
