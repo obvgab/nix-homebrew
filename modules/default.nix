@@ -324,6 +324,7 @@ let
     gems_util="$out/Library/Homebrew/utils/gems.rb"
     chmod u+w "$gems_util"
     sed -i -E "s|\"GEM_PATH\"[[:space:]]*=>[[:space:]]*gem_home,|\"GEM_PATH\" => \"#{gem_home}:${bundledRuby}/${gemPath}\",|" "$gems_util"
+    echo "${bundledRuby}/${gemPath}"
 
     # 4.3.5: Clear GIT_REVISION to bypass caching mechanism
     sed -i -e 's/^GIT_REVISION=.*/GIT_REVISION=""; HOMEBREW_VERSION="${brew.version}"/g' "$brew_sh"
